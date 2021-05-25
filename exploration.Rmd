@@ -1,0 +1,149 @@
+---
+title: "Exploration"
+author: "Neeraj Sharma"
+date: "5/24/2021"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+```{r}
+# Load necessary packages
+library(tidyverse)
+library(here)
+library(knitr)
+library(kableExtra)
+library(lubridate)
+library(scales)
+```
+
+```{r}
+# Load all our data in
+crashes <- read_csv(here("Data", "Crashes.csv"))
+person <- read_csv(here("Data", "Person.csv"))
+vehicles <- read_csv(here("Data", "Vehicles.csv"))
+```
+
+Things I want to know now:
+* Where has there been treatment for me to do a diff-in-diff on?
+* What different treatments have been done?
+* I'm not seeing great before/after visually. 
+
+## Where is the missing zip code info located?
+
+In total there are `r crashes %>% drop_na("ZIP CODE") %>% nrow()` crashes with Zipcode information. This is pretty good for a raw dataset 1.7 million crashes.
+
+```{r}
+crashes %>%
+  filter(is.na(`ZIP CODE`)) %>%
+  group_by(`ON STREET NAME`) %>%
+  count() %>%
+  arrange(desc(n)) %>%
+  head(10) %>%
+  kable()
+```
+
+## Where are most crashes located?
+
+```{r}
+crashes %>%
+  count(BOROUGH) %>%
+  ggplot(aes(x = fct_reorder(BOROUGH, -n), y = n)) +
+  geom_col() +
+  scale_y_continuous(labels = comma)
+```
+
+## What are the most dangerous intersections?
+
+Most crashes take place on on the Parkways/expressways. I have removed them here so we are just looking at actual intersections. 
+
+```{r}
+crashes %>% 
+  group_by(`ON STREET NAME`, `CROSS STREET NAME`, `BOROUGH`) %>% 
+  summarize(crash_count = n()) %>% 
+  drop_na(`CROSS STREET NAME`) %>% 
+  arrange(desc(crash_count)) %>% 
+  head(10) %>% 
+  kable()
+```
+
+Let's take ROCKAWAY BOULEVARD	BROOKVILLE BOULEVARD and see how it has changed over time.
+
+```{r}
+crashes %>% 
+  filter(`ON STREET NAME` == "ROCKAWAY BOULEVARD" & `CROSS STREET NAME` == "BROOKVILLE BOULEVARD") %>% 
+  mutate(`CRASH DATE` = mdy(`CRASH DATE`)) %>% 
+  group_by(month = floor_date(`CRASH DATE`, "quarter")) %>% 
+  summarize(count = n()) %>% 
+  ggplot(aes(x = month, y = count)) + 
+  geom_line() + 
+  labs(title = "Quarterly crashes at Rockaway/Brookville over time", x = "Date")
+
+top_causes_rockaway_brookville <- crashes %>% 
+  filter(`ON STREET NAME` == "ROCKAWAY BOULEVARD" & `CROSS STREET NAME` == "BROOKVILLE BOULEVARD") %>% 
+  count(`CONTRIBUTING FACTOR VEHICLE 1`) %>% 
+  arrange(desc(n)) %>% 
+  head(7) 
+
+top_causes_rockaway_brookville %>% 
+  ggplot(aes(x = fct_reorder(`CONTRIBUTING FACTOR VEHICLE 1`, -n), y = n)) +
+  geom_col() +
+  labs(title = "Top 7 causes of accident at Rockaway/Brookville over time")
+
+
+crashes %>% 
+  filter(`ON STREET NAME` == "ROCKAWAY BOULEVARD" & `CROSS STREET NAME` == "BROOKVILLE BOULEVARD") %>% 
+  mutate(`CRASH DATE` = mdy(`CRASH DATE`)) %>% 
+  group_by(month = floor_date(`CRASH DATE`, "quarter"), `CONTRIBUTING FACTOR VEHICLE 1`) %>%
+  summarize(count = n()) %>% 
+  semi_join(top_causes_rockaway_brookville) %>% 
+  ggplot(aes(x = month, y = count, color = `CONTRIBUTING FACTOR VEHICLE 1`)) + 
+  geom_line()
+```
+
+Let's take a look at Manhattan's most dangerous zone. EAST 59 STREET/2 AVENUE	
+
+```{r}
+crashes %>% 
+  filter(`ON STREET NAME` == "EAST 59 STREET" & `CROSS STREET NAME` == "2 AVENUE") %>% 
+  mutate(`CRASH DATE` = mdy(`CRASH DATE`)) %>% 
+  group_by(month = floor_date(`CRASH DATE`, "quarter")) %>% 
+  summarize(count = n()) %>% 
+  ggplot(aes(x = month, y = count)) + 
+  geom_line() + 
+  labs(title = "Quarterly crashes at EAST 59 STREET/Brookville over time", x = "Date")
+
+top_causes_59_2 <- crashes %>% 
+  filter(`ON STREET NAME` == "EAST 59 STREET" & `CROSS STREET NAME` == "2 AVENUE") %>% 
+  count(`CONTRIBUTING FACTOR VEHICLE 1`) %>% 
+  arrange(desc(n)) %>% 
+  head(7) 
+
+top_causes_59_2 %>% 
+  ggplot(aes(x = fct_reorder(`CONTRIBUTING FACTOR VEHICLE 1`, -n), y = n)) +
+  geom_col() +
+  labs(title = "Top 7 causes of accident at EAST 59 STREET/2nd ave over time")
+
+
+crashes %>% 
+  filter(`ON STREET NAME` == "EAST 59 STREET" & `CROSS STREET NAME` == "2 AVENUE") %>% 
+  mutate(`CRASH DATE` = mdy(`CRASH DATE`)) %>% 
+  group_by(month = floor_date(`CRASH DATE`, "quarter"), `CONTRIBUTING FACTOR VEHICLE 1`) %>%
+  summarize(count = n()) %>% 
+  semi_join(top_causes_59_2) %>% 
+  ggplot(aes(x = month, y = count, color = `CONTRIBUTING FACTOR VEHICLE 1`)) + 
+  geom_line()
+```
+
+## Let's merge all the data together and see what we can get?
+
+Are the incident ID's uniform?
+
+```{r}
+full_data <- inner_join(crashes, person, by = c("COLLISION_ID")) %>%
+  inner_join(vehicles %>% select(-VEHICLE_ID), by = c("COLLISION_ID"))
+
+full_data %>% head(10)
+```
