@@ -10,20 +10,21 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
 ```{r}
-# Load necessary packages
 library(tidyverse)
 library(here)
 library(knitr)
+library(ggthemes)
 library(kableExtra)
 library(lubridate)
 library(scales)
 ```
 
 ```{r}
-# Load all our data in
 crashes <- read_csv(here("Data", "Crashes.csv"))
 person <- read_csv(here("Data", "Person.csv"))
 vehicles <- read_csv(here("Data", "Vehicles.csv"))
+priority_intersections <- read_csv(here("Data", "Priority_Intersections.csv"))
+street_improvement_projects_intersections <- read_csv(here("Data", "SIP_Intersections.csv"))
 ```
 
 Things I want to know now:
@@ -137,13 +138,164 @@ crashes %>%
   geom_line()
 ```
 
+Specific intersections aren't yielding enough for me. Let me do boroughs broadly. 
+
+```{r}
+important_crash_reasons <- crashes %>%
+  filter(`CONTRIBUTING FACTOR VEHICLE 1` != "Unspecified") %>% 
+  count(`CONTRIBUTING FACTOR VEHICLE 1`) %>% 
+  slice_max(`n`, n = 5)
+            
+crashes %>% 
+  mutate(`CRASH DATE` = mdy(`CRASH DATE`)) %>% 
+  group_by(quarter = floor_date(`CRASH DATE`, "quarter"), `BOROUGH`, `CONTRIBUTING FACTOR VEHICLE 1`) %>% 
+  summarize(count = n()) %>% 
+  semi_join(important_crash_reasons) %>% 
+  ggplot(aes(x = quarter, y = count, color = `CONTRIBUTING FACTOR VEHICLE 1`)) + 
+  geom_line() + 
+  facet_wrap(~BOROUGH, scales = "free_y") +
+  labs(title = "Number of Accidents by Cause Across Boroughs",
+       subtitle = "2012 to Present",
+       color = "Crash Reason",
+       x = "Quarter", y = "Number of Accidents") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = -25, hjust = 0), 
+        plot.background = element_rect(fill = "lightblue"),
+        plot.margin = margin(r = 2, unit = "cm"), 
+        legend.position = "bottom") +
+  guides(color=guide_legend(nrow=2,byrow=TRUE))
+```
+
+Questions this creates for me:
+* Do numbers go up in mid 2014 and stuff because their data reporting became more complete or were there actually more accidents as a result of those?
+
+## Let's hand calcualte some KSI's for intersections
+
+```{r}
+crashes %>%
+  rename(date = `CRASH DATE`, time = `CRASH TIME`, borough = BOROUGH, 
+         injured = `NUMBER OF PERSONS INJURED`, killed = `NUMBER OF PERSONS KILLED`, 
+         main_factor = `CONTRIBUTING FACTOR VEHICLE 1`, vehicle_1 = `VEHICLE TYPE CODE 1`,
+         street = `ON STREET NAME`, cross = `CROSS STREET NAME`) %>% 
+  mutate(date = mdy(date)) %>%
+  # filter(date < ymd(20151231)) %>% 
+  group_by(street, cross, borough) %>% 
+  summarize(count_inj = sum(injured), count_kill = sum(killed)) %>% 
+  mutate(ksi = count_inj + count_kill) %>% 
+  drop_na(cross, borough) %>% 
+  arrange(desc(ksi)) %>% 
+  ungroup() %>% 
+  group_by(borough) %>% 
+  mutate(ranking_in_borough = row_number(), 
+         running_ksi = cumsum(ksi), 
+         total_ksi_in_borough = sum(ksi, na.rm = TRUE),
+         priority_area = if_else(running_ksi < 0.15*total_ksi_in_borough, 1, 0))
+```
+
+## Let us check how treatment is implimented?
+
+Do we have strict exogeniety violations? We def have violations across all million crashes/interventions, and then in the top most frequent ones. But what about the intersections that are dangerous, but not that dangerous? Does NYC truely go sequentially or just randomly fix, lets say, the 50th to 150th most commonly dangerous intersections. If they randomly fix, then we have satisfied strict exogeniety for that sample and can test. 
+
+```{r}
+priority_intersections
+street_improvement_projects_intersections %>% 
+  mutate(LONG = )
+```
+
+## Gonna do some random regressions
+
+```{r}
+cleaned_crashes <- crashes %>% 
+  select(date = `CRASH DATE`, time = `CRASH TIME`, borough = BOROUGH, injured = `NUMBER OF PERSONS INJURED`,
+         killed = `NUMBER OF PERSONS KILLED`, main_factor = `CONTRIBUTING FACTOR VEHICLE 1`, vehicle_1 = `VEHICLE TYPE CODE 1`) %>%
+  mutate(manhattan = ifelse(borough == "MANHATTAN", 1, 0),
+         brooklyn = ifelse(borough == "Brooklyn", 1, 0),
+         bronx = ifelse(borough == "BRONX", 1, 0),
+         staten = ifelse(borough == "STATEN ISLAND", 1, 0),
+         queens = ifelse(borough == "QUEENS", 1, 0),
+         )
+
+cleaned_crashes %>%
+  count(vehicle_1) %>% arrange(desc(n))
+
+# glm(injured ~ manhattan + bronx + staten + queens, family = "binomial", data = cleaned_crashes) %>% 
+#   summary()
+
+
+```
+
 ## Let's merge all the data together and see what we can get?
 
 Are the incident ID's uniform?
 
 ```{r}
-full_data <- inner_join(crashes, person, by = c("COLLISION_ID")) %>%
-  inner_join(vehicles %>% select(-VEHICLE_ID), by = c("COLLISION_ID"))
+# full_data <- inner_join(crashes, person, by = c("COLLISION_ID")) %>%
+#   inner_join(vehicles %>% select(-VEHICLE_ID), by = c("COLLISION_ID"))
+# 
+# full_data %>% head(10)
+```
 
-full_data %>% head(10)
+## These are the graphs I made for the presentation deck
+
+```{r}
+cleaned <- crashes %>%
+  rename(date = `CRASH DATE`, time = `CRASH TIME`, borough = BOROUGH, 
+         injured = `NUMBER OF PERSONS INJURED`, killed = `NUMBER OF PERSONS KILLED`, 
+         main_factor = `CONTRIBUTING FACTOR VEHICLE 1`, vehicle_1 = `VEHICLE TYPE CODE 1`,
+         street = `ON STREET NAME`, cross = `CROSS STREET NAME`) %>% 
+  mutate(date = mdy(date))
+
+cleaned %>% 
+  drop_na(borough) %>% 
+  group_by(borough, main_factor) %>% 
+  summarize(count = n()) %>% 
+  filter(main_factor != "Unspecified") %>% 
+  slice_max(`count`, n = 5) %>% 
+  ggplot(aes(x = fct_reorder(main_factor, -count), y = count)) +
+  geom_col() +
+  facet_wrap(~borough, scales = "free_x") + 
+  labs(title = "Number of Accidents by Cause Across Boroughs",
+       subtitle = "2012 to Present",
+       x = "Cause of Collision", y = "Number of Accidents") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = -25, hjust = 0), 
+        plot.background = element_rect(fill = "lightblue"),
+        plot.margin = margin(r = 2, unit = "cm"))
+
+
+main_factor_of_crashes_inBoroughs <- cleaned %>% 
+  drop_na(borough) %>% 
+  group_by(borough, main_factor) %>% 
+  summarize(count = n()) %>% 
+  filter(main_factor != "Unspecified") %>% 
+  slice_max(`count`, n = 5) %>% 
+  select(-count)
+
+cleaned %>% 
+  drop_na(borough) %>% 
+  mutate(pre2015 = ifelse(date > ymd(20151231), "Post", "Pre")) %>%
+  group_by(borough, main_factor, pre2015) %>% 
+  summarize(count = n()) %>% 
+  filter(main_factor != "Unspecified") %>% 
+  inner_join(main_factor_of_crashes_inBoroughs) %>% 
+  ggplot(aes(x = fct_reorder(main_factor, -count), y = count, fill = factor(pre2015, levels = c("Pre", "Post")))) +
+  geom_col(position = "dodge2") +
+  facet_wrap(~borough, scales = "free_x") + 
+  labs(title = "Number of Accidents by Cause Across Boroughs",
+       subtitle = "2012 to End 2015, 2016 to Present",
+       x = "Cause of Collision", y = "Number of Accidents",
+       fill = "Pre/Post 2015") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = -25, hjust = 0), 
+        plot.background = element_rect(fill = "lightblue"),
+        plot.margin = margin(r = 2, unit = "cm"), 
+        legend.position = c(0.95, 0.1))
+```
+
+```{r}
+# street_improvement_projects_intersections %>%
+#   mutate(the_geom = str_extract_all(the_geom, "\\([^()]+\\"))
+  
+  
+  # mutate(LONG = str_extract_all(the_geom, "[0-9]+.[0-9]+")) %>% unnest()
 ```
