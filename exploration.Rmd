@@ -25,6 +25,7 @@ person <- read_csv(here("Data", "Person.csv"))
 vehicles <- read_csv(here("Data", "Vehicles.csv"))
 priority_intersections <- read_csv(here("Data", "Priority_Intersections.csv"))
 street_improvement_projects_intersections <- read_csv(here("Data", "SIP_Intersections.csv"))
+speed_humps <- read_csv(here("Data", "Speed_Humps.csv"))
 ```
 
 Things I want to know now:
@@ -198,8 +199,7 @@ Do we have strict exogeniety violations? We def have violations across all milli
 
 ```{r}
 priority_intersections
-street_improvement_projects_intersections %>% 
-  mutate(LONG = )
+street_improvement_projects_intersections
 ```
 
 ## Gonna do some random regressions
@@ -224,6 +224,88 @@ cleaned_crashes %>%
 
 ```
 
+## Let's consider accidents with pedestrians
+
+```{r}
+cleaned <- crashes %>%
+  rename(date = `CRASH DATE`, time = `CRASH TIME`, borough = BOROUGH, 
+         persons_injured = `NUMBER OF PERSONS INJURED`, persons_killed = `NUMBER OF PERSONS KILLED`, 
+         peds_injured = `NUMBER OF PEDESTRIANS INJURED`, peds_killed = `NUMBER OF PEDESTRIANS KILLED`, 
+         cycl_injured = `NUMBER OF CYCLIST INJURED`, cycl_killed = `NUMBER OF CYCLIST KILLED`,
+         main_factor = `CONTRIBUTING FACTOR VEHICLE 1`, vehicle_1 = `VEHICLE TYPE CODE 1`,
+         street = `ON STREET NAME`, cross = `CROSS STREET NAME`) %>% 
+  mutate(date = mdy(date))
+
+cleaned %>% 
+  filter(peds_injured >= 1) %>% 
+  group_by(borough, peds_injured, quarter = floor_date(date, "quarter")) %>% 
+  summarize(count = n()) %>% 
+  ggplot(aes(x = quarter, y = count, color = factor(peds_injured))) + 
+  geom_line() + 
+  facet_wrap(~borough) +
+  labs(title = "Count of accidents causing injury to Peds over time",
+       subtitle = "despite seeing more accidents, the dangerous/injuring accidents are down")
+```
+
+## Let's make a similar graph, but with deaths instead of injuries
+
+```{r}
+cleaned %>% 
+  filter(peds_killed >= 1) %>% 
+  group_by(borough, peds_killed, quarter = floor_date(date, "quarter")) %>% 
+  summarize(count = n()) %>% 
+  ggplot(aes(x = quarter, y = count, color = factor(peds_killed))) + 
+  geom_line() + 
+  facet_wrap(~borough) +
+  labs(title = "Count of accidents causing injury to Peds over time")
+```
+
+This is a little more confusing, mostly cuz pedestrian deaths are such a low frequency event.You do see subtle trends downwards in Manhattan and the Bronx maybe based on what I see.
+
+## Same analysis for cyclists
+
+```{r}
+cleaned %>% 
+  filter(cycl_injured >= 1) %>% 
+  group_by(borough, cycl_injured, quarter = floor_date(date, "quarter")) %>% 
+  summarize(count = n()) %>% 
+  ggplot(aes(x = quarter, y = count, color = factor(cycl_injured))) + 
+  geom_line() + 
+  facet_wrap(~borough) +
+  labs(title = "Count of accidents causing injury to cyclists over time")
+
+cleaned %>% 
+  filter(cycl_killed >= 1) %>% 
+  group_by(borough, cycl_killed, quarter = floor_date(date, "quarter")) %>% 
+  summarize(count = n()) %>% 
+  ggplot(aes(x = quarter, y = count, color = factor(cycl_killed))) + 
+  geom_line() + 
+  facet_wrap(~borough) +
+  labs(title = "Count of accidents causing killed to cyclists over time")
+```
+
+# When pedestrians are injured, what is it that kills them?
+
+what kills them
+
+```{r}
+ped_killers <- cleaned %>% 
+  filter(peds_injured >= 1) %>% 
+  group_by(main_factor) %>% 
+  summarize(count = n()) %>% 
+  arrange(desc(count))
+
+cleaned %>% 
+  filter(peds_injured >= 1)
+```
+
+## Let's check out speed humps
+
+```{r}
+# speed_humps %>% 
+#   mutate(date = ymd(date_insta))
+```
+
 ## Let's merge all the data together and see what we can get?
 
 Are the incident ID's uniform?
@@ -238,13 +320,6 @@ Are the incident ID's uniform?
 ## These are the graphs I made for the presentation deck
 
 ```{r}
-cleaned <- crashes %>%
-  rename(date = `CRASH DATE`, time = `CRASH TIME`, borough = BOROUGH, 
-         injured = `NUMBER OF PERSONS INJURED`, killed = `NUMBER OF PERSONS KILLED`, 
-         main_factor = `CONTRIBUTING FACTOR VEHICLE 1`, vehicle_1 = `VEHICLE TYPE CODE 1`,
-         street = `ON STREET NAME`, cross = `CROSS STREET NAME`) %>% 
-  mutate(date = mdy(date))
-
 cleaned %>% 
   drop_na(borough) %>% 
   group_by(borough, main_factor) %>% 

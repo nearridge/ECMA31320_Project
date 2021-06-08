@@ -19,6 +19,7 @@ person <- read_csv(here("Data", "Person.csv"))
 vehicles <- read_csv(here("Data", "Vehicles.csv"))
 priority_intersections <- read_csv(here("Data", "Priority_Intersections.csv"))
 street_improvement_projects_intersections <- read_csv(here("Data", "SIP_Intersections.csv"))
+speed_humps <- read_csv(here("Data", "Speed_Humps.csv"))
 ```
 
 Things I want to know now: \* Where has there been treatment for me to
@@ -768,8 +769,7 @@ priority_intersections
     ## # … with 283 more rows
 
 ``` r
-street_improvement_projects_intersections %>% 
-  mutate(LONG = )
+street_improvement_projects_intersections
 ```
 
     ## # A tibble: 237 x 4
@@ -824,6 +824,123 @@ cleaned_crashes %>%
 #   summary()
 ```
 
+## Let’s consider accidents with pedestrians
+
+``` r
+cleaned <- crashes %>%
+  rename(date = `CRASH DATE`, time = `CRASH TIME`, borough = BOROUGH, 
+         persons_injured = `NUMBER OF PERSONS INJURED`, persons_killed = `NUMBER OF PERSONS KILLED`, 
+         peds_injured = `NUMBER OF PEDESTRIANS INJURED`, peds_killed = `NUMBER OF PEDESTRIANS KILLED`, 
+         cycl_injured = `NUMBER OF CYCLIST INJURED`, cycl_killed = `NUMBER OF CYCLIST KILLED`,
+         main_factor = `CONTRIBUTING FACTOR VEHICLE 1`, vehicle_1 = `VEHICLE TYPE CODE 1`,
+         street = `ON STREET NAME`, cross = `CROSS STREET NAME`) %>% 
+  mutate(date = mdy(date))
+
+cleaned %>% 
+  filter(peds_injured >= 1) %>% 
+  group_by(borough, peds_injured, quarter = floor_date(date, "quarter")) %>% 
+  summarize(count = n()) %>% 
+  ggplot(aes(x = quarter, y = count, color = factor(peds_injured))) + 
+  geom_line() + 
+  facet_wrap(~borough) +
+  labs(title = "Count of accidents causing injury to Peds over time",
+       subtitle = "despite seeing more accidents, the dangerous/injuring accidents are down")
+```
+
+![](exploration_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
+
+## Let’s make a similar graph, but with deaths instead of injuries
+
+``` r
+cleaned %>% 
+  filter(peds_killed >= 1) %>% 
+  group_by(borough, peds_killed, quarter = floor_date(date, "quarter")) %>% 
+  summarize(count = n()) %>% 
+  ggplot(aes(x = quarter, y = count, color = factor(peds_killed))) + 
+  geom_line() + 
+  facet_wrap(~borough) +
+  labs(title = "Count of accidents causing injury to Peds over time")
+```
+
+![](exploration_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
+
+This is a little more confusing, mostly cuz pedestrian deaths are such a
+low frequency event.You do see subtle trends downwards in Manhattan and
+the Bronx maybe based on what I see.
+
+## Same analysis for cyclists
+
+``` r
+cleaned %>% 
+  filter(cycl_injured >= 1) %>% 
+  group_by(borough, cycl_injured, quarter = floor_date(date, "quarter")) %>% 
+  summarize(count = n()) %>% 
+  ggplot(aes(x = quarter, y = count, color = factor(cycl_injured))) + 
+  geom_line() + 
+  facet_wrap(~borough) +
+  labs(title = "Count of accidents causing injury to cyclists over time")
+```
+
+![](exploration_files/figure-gfm/unnamed-chunk-14-1.png)<!-- -->
+
+``` r
+cleaned %>% 
+  filter(cycl_killed >= 1) %>% 
+  group_by(borough, cycl_killed, quarter = floor_date(date, "quarter")) %>% 
+  summarize(count = n()) %>% 
+  ggplot(aes(x = quarter, y = count, color = factor(cycl_killed))) + 
+  geom_line() + 
+  facet_wrap(~borough) +
+  labs(title = "Count of accidents causing killed to cyclists over time")
+```
+
+![](exploration_files/figure-gfm/unnamed-chunk-14-2.png)<!-- -->
+
+# When pedestrians are injured, what is it that kills them?
+
+what kills them
+
+``` r
+ped_killers <- cleaned %>% 
+  filter(peds_injured >= 1) %>% 
+  group_by(main_factor) %>% 
+  summarize(count = n()) %>% 
+  arrange(desc(count))
+
+cleaned %>% 
+  filter(peds_injured >= 1)
+```
+
+    ## # A tibble: 88,223 x 29
+    ##    date       time  borough `ZIP CODE` LATITUDE LONGITUDE LOCATION street cross
+    ##    <date>     <tim> <chr>        <dbl>    <dbl>     <dbl> <chr>    <chr>  <chr>
+    ##  1 2021-04-13 21:35 BROOKL…      11217     40.7     -74.0 (40.683… <NA>   <NA> 
+    ##  2 2021-04-11 21:06 BROOKL…      11226     NA        NA   <NA>     BEVER… EAST…
+    ##  3 2021-04-13 20:34 BROOKL…      11213     40.7     -73.9 (40.668… EASTE… BUFF…
+    ##  4 2021-04-15 12:05 <NA>            NA     40.8     -73.8 (40.761… BELL … <NA> 
+    ##  5 2021-04-15 20:13 BRONX        10457     40.8     -73.9 (40.847… EAST … PARK…
+    ##  6 2021-04-15 16:37 BROOKL…      11210     40.6     -73.9 (40.632… <NA>   <NA> 
+    ##  7 2021-04-16 08:40 QUEENS       11379     40.7     -73.9 (40.727… ELIOT… 85 S…
+    ##  8 2021-04-15 22:25 MANHAT…      10036     40.8     -74.0 (40.760… WEST … 11 A…
+    ##  9 2021-04-16 20:26 MANHAT…      10032     40.8     -73.9 (40.836… BROAD… WEST…
+    ## 10 2021-04-14 08:03 MANHAT…      10017     40.7     -74.0 (40.748… EAST … 1 AV…
+    ## # … with 88,213 more rows, and 20 more variables: `OFF STREET NAME` <chr>,
+    ## #   persons_injured <dbl>, persons_killed <dbl>, peds_injured <dbl>,
+    ## #   peds_killed <dbl>, cycl_injured <dbl>, cycl_killed <dbl>, `NUMBER OF
+    ## #   MOTORIST INJURED` <dbl>, `NUMBER OF MOTORIST KILLED` <dbl>,
+    ## #   main_factor <chr>, `CONTRIBUTING FACTOR VEHICLE 2` <chr>, `CONTRIBUTING
+    ## #   FACTOR VEHICLE 3` <chr>, `CONTRIBUTING FACTOR VEHICLE 4` <chr>,
+    ## #   `CONTRIBUTING FACTOR VEHICLE 5` <chr>, COLLISION_ID <dbl>, vehicle_1 <chr>,
+    ## #   `VEHICLE TYPE CODE 2` <chr>, `VEHICLE TYPE CODE 3` <chr>, `VEHICLE TYPE
+    ## #   CODE 4` <chr>, `VEHICLE TYPE CODE 5` <chr>
+
+## Let’s check out speed humps
+
+``` r
+# speed_humps %>% 
+#   mutate(date = ymd(date_insta))
+```
+
 ## Let’s merge all the data together and see what we can get?
 
 Are the incident ID’s uniform?
@@ -838,13 +955,6 @@ Are the incident ID’s uniform?
 ## These are the graphs I made for the presentation deck
 
 ``` r
-cleaned <- crashes %>%
-  rename(date = `CRASH DATE`, time = `CRASH TIME`, borough = BOROUGH, 
-         injured = `NUMBER OF PERSONS INJURED`, killed = `NUMBER OF PERSONS KILLED`, 
-         main_factor = `CONTRIBUTING FACTOR VEHICLE 1`, vehicle_1 = `VEHICLE TYPE CODE 1`,
-         street = `ON STREET NAME`, cross = `CROSS STREET NAME`) %>% 
-  mutate(date = mdy(date))
-
 cleaned %>% 
   drop_na(borough) %>% 
   group_by(borough, main_factor) %>% 
@@ -863,7 +973,7 @@ cleaned %>%
         plot.margin = margin(r = 2, unit = "cm"))
 ```
 
-![](exploration_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
+![](exploration_files/figure-gfm/unnamed-chunk-18-1.png)<!-- -->
 
 ``` r
 main_factor_of_crashes_inBoroughs <- cleaned %>% 
@@ -895,7 +1005,7 @@ cleaned %>%
         legend.position = c(0.95, 0.1))
 ```
 
-![](exploration_files/figure-gfm/unnamed-chunk-13-2.png)<!-- -->
+![](exploration_files/figure-gfm/unnamed-chunk-18-2.png)<!-- -->
 
 ``` r
 # street_improvement_projects_intersections %>%
