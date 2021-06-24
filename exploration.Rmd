@@ -12,6 +12,7 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```{r}
 library(tidyverse)
 library(here)
+library(stargazer)
 library(knitr)
 library(ggthemes)
 library(kableExtra)
@@ -26,6 +27,20 @@ vehicles <- read_csv(here("Data", "Vehicles.csv"))
 priority_intersections <- read_csv(here("Data", "Priority_Intersections.csv"))
 street_improvement_projects_intersections <- read_csv(here("Data", "SIP_Intersections.csv"))
 speed_humps <- read_csv(here("Data", "Speed_Humps.csv"))
+
+lucas_v3 <- read_csv(here("Data", "Lucas Data", "regressions_v3_new.csv")) %>% 
+  select(-COLLISION_ID)
+```
+
+# Verifying Lucas's Regressions
+
+```{r}
+lucas_v3
+
+lm(count ~ bumps + month + speed_reduction, data = lucas_v3) %>% 
+  summary()
+
+stargazer(lm(count ~ bumps + month + speed_reduction, data = lucas_v3))
 ```
 
 Things I want to know now:
