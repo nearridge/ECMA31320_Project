@@ -1,0 +1,270 @@
+---
+title: "An Assessment of Vision Zero Interventions in New York City"
+subtitle: "ECMA31320, Professor Ali Hortascu^[Special thanks to Paco Del Villar for his help this quarter]"
+author: "Neeraj Sharma, Lucas Souza, Michael Ryter"
+date: "June 8, 2021"
+header-includes:
+  - \usepackage{setspace}\doublespacing
+  - \usepackage{indentfirst}
+output: pdf_document
+indent: true
+fontsize: 12pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(here)
+library(stargazer)
+library(fastDummies)
+```
+
+```{r}
+crashes <- read_csv(here("Data", "Crashes.csv")) %>% 
+  rename(date = `CRASH DATE`, time = `CRASH TIME`, borough = BOROUGH, 
+         injured = `NUMBER OF PERSONS INJURED`, killed = `NUMBER OF PERSONS KILLED`, 
+         main_factor = `CONTRIBUTING FACTOR VEHICLE 1`, vehicle_1 = `VEHICLE TYPE CODE 1`,
+         street = `ON STREET NAME`, cross = `CROSS STREET NAME`) 
+
+lucas_v2 <- read_csv(here("Data", "Lucas Data", "regressions_v2.csv"))
+```
+
+# Abstract
+
+Traffic fatalities are expected to be the fifth highest cause of death in the world by 2030. The global Vision Zero movement aims to halt this trend, guiding municipal decision making and planning. Based on data provided by the New York City Department of Transportation, we assess the significance of two interventions performed in the city as part of the Vision Zero agenda undertaken since 2014. We find that, at different levels of granularity, speed bumps and increasing the leading pedestrian interval at traffic lights have a significant effect on both the number of crashes and overall injuries amongst all parties and pedestrians specifically. Speed bumps decrease overall injuries by 24.3% and the number of crashes by 12.3%. The leading pedestrian interval shows a more modest, 1.8% decrease in the number of pedestrian injuries specifically. This figure might be an underestimate due to the the car-centric nature of our data obscuring the true impact on pedestrians. Regardless, both of these figures imply that the Vision Zero interventions successfully achieve their stated goals. 
+
+\newpage
+
+# Introduction
+
+Vision Zero is a traffic planning strategy that attempts to eliminate all traffic fatalities and serious injuries by attempting to manage vehicle speed through street design, speed limits, and traffic enforcement. It has a particular focus on protecting cyclists and pedestrians (as well as vehicle occupants), especially in neighborhoods with large numbers of elderly or disabled individuals who may have mobility challenges. Advocates of the Vision Zero philosophy believes that traffic policy is a complex challenge that requires a multidisciplinary government approach, with a role in the street design process for traffic planners, policymakers, engineers, public health officials, and community leaders.
+ 
+After its founding in Sweden in 1997, Vision Zero gained popularity in several European cities, and has gained traction in major American cities over the last decade. Sweden’s road fatality rate in 2015 was 2.8 per 100,000 residents, a 66% decrease since 1990. By comparison, the United States’ 2015 road fatality rate was 12.4 per 100,000 residents (Global Status Report on Road Safety 2018). Major American cities that have adopted Vision Zero policies include Austin, TX, Boston, MA, Chicago, IL, Fort Lauderdale, FL, Los Angeles and San Francisco, CA, New York, NY, Portland, OR, Seattle, WA, and Washington, DC. Our study specifically focuses on the Vision Zero initiative in New York City, and all future mentions of “Vision Zero'' in this paper refer to the New York City government’s initiative unless specified otherwise.
+ 
+Vision Zero in New York City was founded in 2014 by Mayor Bill de Blasio, and the city has implemented several interventions in the years since. In November 2014, the city reduced speed limits on most streets from 30 miles per hour to 25 miles per hour (McGeehan 2014). On streets and at intersections, the city has installed additional speed bumps (speed humps), speed cushions, offset and enhanced crossings, and leading pedestrian interval signals, and redesigned dangerous intersections and installed more traffic circles and roundabouts. New York City has also increased traffic education for taxi, truck, and bus drivers, as well as young children in public schools. In 2019, New York City traffic fatalities were one-third lower than in 2013, the year prior to Vision’s Zero’s founding, and pedestrian fatalities were down 37% relative to 2013 levels (Vision Zero Year Five Report).
+ 
+Our paper attempts to evaluate the causal effect of two of these Vision Zero interventions: speed bumps, which raise driving surfaces to slow motor vehicle speeds, and leading pedestrian intervals, which give pedestrians an advantage crossing the street by showing the walk sign several seconds before the drivers parallel to the crosswalk receive a green light. The goal of leading pedestrian intervals is to prevent accidents that occur when drivers turn and collide with a pedestrian crossing the street parallel to the driver’s original direction.
+
+# Literature Review
+ 
+Most existing literature related to Vision Zero initiatives globally, to our knowledge, addresses government organizations, like Naumann et al (2019), best practices designing action plans and building political support, like Wegman et al (2015), or attempting to evaluate risk vs. mobility tradeoffs, like Noland (2013). Despite the substantial decrease in fatalities and the widespread belief that Vision Zero has been successful, there exists limited empirical literature examining the casual effect of specific traffic interventions in New York City, or even any other major American cities. Mammen et al (2019) use monthly panel data and a difference-in-difference model to evaluate the impact of the 2014 speed limit reduction in New York City and find a 38.7% decline in casualties and 35.8% decline in crashes on streets with speed limit reductions compared to those without changes. Because of this finding, we control for speed limit changes in our approach, discussed later.
+ 
+The conventional wisdom is that speed bumps reduce vehicle speeds, and that assumption is generally supported by the very limited evidence available to us. Antic et al (2013) use a multiple comparison test and find that speed bump installation led to significant decreases in both the 50th percentile and 85% percentile speeds on streets in Belgrade, Serbia. The study suggests more work is needed to examine the effect of speed bumps on safety outcome variables, such as fatalities and injuries, and to do it on a large scale. Tester et al (2004) uses a matched case-control study to examine the impact of speed bumps on child pedestrian fatalities in Oakland, CA, which installed 1600 speed bumps in residential areas from 1995 to 2000. The study found that the installation of speed bumps decreased the odds of children being struck by a vehicle in their neighborhood and in front of their residence. Our work will expand on this study by using data more than fifteen years more recent, studying both residential and non-residential areas in a city with different characteristics, and examining the impact of speed bump installation on pedestrians of all ages and drivers.
+ 
+Similar to speed bumps, the literature on leading pedestrian intervals, to our knowledge, primarily features methodologies that focus on intensive observation of a small number of intersections, rather than using large datasets to estimate the intervention’s impact across several locations. Bullock et al (2006) observe that vehicles make right turns more slowly when turning right on a red light than when they turn right while having a green light at 13 of 13 intersections studied. Citing the fact that a leading pedestrian interval by definition means that cars turning right would have a red light for a longer period of time while pedestrians are crossing, the study concludes that leading pedestrian intervals may improve safety by slowing vehicle speeds. Pecheux (2009) studies leading pedestrian intervals in Las Vegas, NV, San Francisco, CA, and Miami-Dade County, FL, and finds that they increase the likelihood of drivers yielding to pedestrians crossing the street. The only study that we found that attempts to quantify the safety impact of leading pedestrian intervals is Fayish and Gross (2010), which finds that leading pedestrian interval intersections in their treatment group reduced pedestrian-vehicle crashes by at least 46.2% in State College, PA, a city of about 45,000 residents surrounded by rural communities. This study, however, only featured 10 treatment and 14 control intersections, which we believe is not a sufficiently large sample size to confidently draw conclusions, and for our purposes, the results would not necessarily be identical in a major city like those where many of the Vision Zero reforms are taking place. State College averaged only 19 pedestrian-vehicle crashes annually in eight years of data reviewed by the authors. Our study adds to the literature by examining 3,309 unique intersections with leading pedestrian intervals in a major American city.
+
+# Data
+
+## Data Description
+
+Our data is sourced from the City of New York Open Data Portal. The Vision Zero project regularly supports and updates datasets on a variety of relevant street safety issues. Using the NYC Open Data platform, we acquired data on over 1.7 million crashes in New York City since 2012 through the primary Vision Zero Dataset on crashes. Each observation in the dataset represents an individual crash report filed by police, containing information such as location of the crash (Zip Code, coordinates, and street names as applicable), time of crash, type of vehicles involved, number of injuries and deaths of pedestrians or other parties, a unique collision id, among other attributes. 
+
+Additionally, we use various auxiliary datasets that provide even more discrete information on the nature of crashes specifically. This allows us to extract information about the presence of various treatments at specific intersections. For example, the Leading Pedestrian Interval dataset contains an “on street” and “cross street” for all the leading pedestrian intervals in the city, along with the date during which the signal was implemented. For reference, a leading pedestrian interval is defined by the New York City Department of Transportation to be where “signals show a pedestrian walk sign before showing a green light to vehicle traffic in the same direction,” allowing the pedestrian to begin to cross ahead of any street traffic. This intervention intends to allow pedestrians to entirely cross the street before traffic starts moving or become visible to drivers that they are in the process of crossing in front of. Numerous interventions such as this one were included to understand different treatment impacts. For our purposes, we specifically study the inclusion of regulatory speed bumps and the leading pedestrian interval. 
+
+Beyond data provided directly by the New York City Department of Transportation, we were unable to find additional sources to incorporate into our framework as the city maintains a near-complete monopoly on records of intersection attributes. Furthermore, New York City publishes almost all available data to public venues as required by state law. As a result, we believe we have included all possible controls and used this to aggregate datasets to sufficient levels of discretization.
+
+Within the dataset, crashes that contained an “on street” and a “cross street” were selected, allowing us to identify which intersection the crash occurred. Crashes that only occurred at an “on street” location took place sufficiently far away from an intersection, or more commonly, on a state expressway or highway. These crash locations are unable to receive the treatment we study, and are thus excluded from our analysis. 
+
+Using the intersection of the crash, the intersection of the leading pedestrian interval, and the date the signal was added, we are able to create a dummy variable for whether or not the signal was present during the time of the crash at the given intersection. We perform the same process for regulatory speed bump interventions. 
+
+## Data Findings
+
+A preface to our initial discovery in our data is that there is significant inconsistency in the street name recordings within and between datasets. For example, a police officer might have recorded a street name as “54 st.” while another “54 Street”. Therefore, before being linked, all street names were normalized through significant string manipulation. This process was performed to the best of our abilities, but a handful of unusually formatted or incorrectly written street names likely failed to be normalized. 
+
+Originally, the dataset contained `r crashes %>% drop_na(street, cross) %>% count(street, cross) %>% nrow()` unique intersections satisfying the above criteria, and our cleaning procedure reduced the number of represented intersections to `r lucas_v2 %>% count(intersection) %>% nrow()`. Despite this seeming like a serious failure to clean our data given that New York City reports slightly over 13000 unique, lighted intersections in city bounds, our ability to properly clean crashes occurring in “priority intersections” was greatly successful. 
+
+According to New York, an intersection is designated as priority if it falls in the highest 15% of the borough by KSI index (killed or seriously injured). These intersections were found in an auxiliary dataset provided by Vision Zero. We combine the overall crashes dataset and the priority intersections dataset for a more microscopic analysis of treatments. Our data was shaped under the “modular data” principle, allowing for quick iterations when designing regressions, having multiple outcome variables and treatments ready to be regressed.
+
+# Approach
+
+Our goal was not to determine the success of the Vision Zero program, but rather measure the efficacy of its prominent pedestrian-centric interventions such as speed bumps and leading pedestrian intervals. 
+
+While the initial thought was to run various regressions on an individual crash level, we decided to aggregate the data into an intersection-monthly level, where we have total injuries/death information and number of accidents as outcome variables for each intersection during a given month. Additionally, dummy variables are in place identifying whether a specific treatment was present at that intersection at the given month. 
+ 
+While the dataset greatly shrinks in size due to the aggregation and groupings, the data now reflects the macro and general trends in all the intersections. Additionally, we simply don’t have the exact data for each intersection at a given date to keep the data on an individual crash level. 
+
+Given the data is aggregated to intersection specific and monthly levels, we can no longer use the crash specific controls such as time of day, type of vehicles involved, etc. Similar to the data, we imposed general and macro controls to best isolate the effect of various infrastructure treatments. An ordinal variable for the month of the year was implemented to control for seasonal effects on the frequency and severity of accidents. Additionally, a binary variable was implemented to account for mass legislation, such as the speed limit reduction from 30mph to 25mph in 2014. 
+
+In regards to the various models, we make assumptions about the distribution process of the treatments and the time-sensitivity of the data. Though explored in more detail in the discussion section, we assume that the treatments we employ (speed bumps and leading pedestrian intervals) are applied randomly across intersections, regardless if an intersection is considered priority or not. Additionally, we do not make an attempt to control for the varying years in our data. Of course, we don’t have the robust assumption that every year, the same cars are driving through the same intersections and getting into crashes. We do assume, however, that there are no major differences between the cars that were on the road in 2012 and those in 2021. Despite not controlling for time, we do attempt to control for time of year using our ordinal month variable. Perhaps the simple and seemingly obvious assumption is that holiday, traffic density, and climate distributions are similar between years. 
+
+Our approach was to iterate over many regressions while continuously zooming deeper into the data. We began with panel data of the overall crashes dataset aggregated on the intersection-monthly level with controls and treatments. We attempted to find any clear and significant relationships between the presence of speed bumps or leading pedestrian intervals on accident frequency, pedestrian injuries, and total injuries.  
+
+Additionally, we explored the persistence of the same relationships in accidents that occurred in the priority intersections. Due to the more concentrated and sparse nature of the priority intersections crashes dataset, we were able to implement an intersection-level fixed effect regression model (along with the usual panel regression), where we have indicator variables for each intersection. Example:
+
+$$
+\text{Accidents}_{it} = \beta_0 + \sum_i ^n \gamma_i \cdot \text{Dummy}_i + \beta_1 \cdot \text{Bumps}_{it} + \sum_k \theta_k \cdot x^k
+$$
+
+Where $\theta$'s are month and speed policy controls.  
+
+While interesting results can be seen regarding the effects of speed bumps on total injuries and accident count, we can’t make any conclusion on the effects of leading pedestrian intervals for a very specific reason. A majority of the crashes simply don’t involve pedestrians. Therefore, when the data is aggregated, car-pedestrian crashes and their potential relationships to treatments become hidden by car-car crashes. It’s essentially impossible to measure the effect of a pedestrian-centric treatment when a majority of the dataset is noise.
+
+After isolating all crashes that involved pedestrians, we repeat the same process of iterating various regression models across the dataset. 
+
+# Results
+
+The presence of speed bumps appears to significantly decrease the number of total injuries across all accidents. In particular, the model approximates a 24.3% decrease in injuries from the presence of speed bumps.  Results (1):
+
+$$
+\text{Total Injuries}_{i, t} = \beta_0 + \beta_1 \cdot \text{Bumps}_{i, t} + \sum_k \theta_k x^k
+$$
+
+This regression contains statistically significant coefficients, as seen below. 
+
+Additionally, the presence of speed bumps appears to significantly decrease the frequency of accidents, both car-on-car and car-on-pedestrian/cyclists. The model estimates a 12.3% decrease in accident frequency due to the presence of speed bumps. Results (2):
+
+$$
+\text{Count}_{i, t} = \beta_0 + \beta_1 \cdot \text{Bumps}_{i, t} + \sum_k \theta_k x^k
+$$
+
+This regression contains statistically significant coefficients, as seen below. 
+
+```{r, results='asis'}
+lucas_v2 <- read_csv(here("Data", "Lucas Data", "regressions_v2.csv"))
+regres1_v2 <- lm(`NUMBER OF PERSONS INJURED` ~ bumps + month + speed_reduction, data = lucas_v2)
+regres2_v2 <- lm(count ~ bumps + month + speed_reduction, data = lucas_v2)
+stargazer(regres1_v2, regres2_v2, header = FALSE, type = "latex", order = c(4, 1, 2, 3))
+```
+
+When we regress using crashes that only happened in priority intersections, we still see the relationship of speed bump presence and lower accident frequency, despite not being statistically significant. The higher p-value of .39 might be a result of the thinner dataset after filtering all non-priority intersections. Results (3):
+
+$$
+\text{Count}_{i, t} = \beta_0 + \beta_1 \cdot \text{Bumps}_{i, t} + \sum_k \theta_k x^k
+$$
+
+This regression fails to have statistically significant coefficients, potentially due to the regression having fewer observations (since it’s priority only). However, this does show a persistence in the effect from all crashes to prior crashes.
+
+```{r, results='asis'}
+lucas_v3 <- read_csv(here("Data", "Lucas Data", "regressions_v3_new.csv"))
+
+regres1_v3 <- lm(count ~ bumps + month + speed_reduction, data = lucas_v3)
+
+stargazer(regres1_v3, header=FALSE, type='latex', order = c(4, 1, 2, 3), column.labels = c("(3)"))
+```
+
+Looking deeper into the priority intersections, we measure the efficacy of speed bumps on total accident injuries while controlling for each intersection using an intersection-level fixed effect model. Results show a negative relationship between presence of speed bumps and injuries, though not statistically significant. This continues to show the persistence of the treatment effect speed bumps have on injuries, even when focusing on a small subset of intersections. Results (4):
+
+$$
+\text{Total Injuries}_{i, t} = \beta_0 + \sum_i^n \gamma_i \cdot \text{Dummy}_i + \beta_1 \cdot \text{Bumps}_{i, t} + \sum_k \theta_k x^k
+$$
+
+This regression does not contain significant coefficients, so it is impossible to accurately discern any implication from coefficients. Note the effect of bumps in decreasing total injuries when controlling for individual intersection.
+
+```{r, results='asis'}
+dummies_lucas_v3 <- lucas_v3 %>% 
+  dummy_cols("intersection") %>% 
+  select(-`CRASH DATE`, -intersection, - COLLISION_ID, 
+         -count, -`NUMBER OF PEDESTRIANS INJURED`,
+         -`NUMBER OF PERSONS KILLED`, -`NUMBER OF PEDESTRIANS KILLED`, 
+         -ped)
+
+regres2_v3 <- lm(`NUMBER OF PERSONS INJURED` ~ ., data = dummies_lucas_v3)
+
+stargazer(regres2_v3, header=FALSE, type='latex', omit = 5:143, order = c(143, 1, 2, 3), column.labels = c("(4)"))
+```
+
+In the previous regressions, there has been a focus on measuring the treatment effect of speed bump presence at intersections. As previously discussed, speed bumps are crash-type agnostic, meaning they are useful for preventing crashes and injuries in both car-on-car accidents and car-on-pedestrian/cyclists. With this in mind, we attempted to measure the treatment effect of speed bumps on the entire crash dataset. We can finally measured the effect of leading pedestrian intervals, in addition to speed bumps, on a filtered dataset that only contains crashes that involve pedestrians. 
+
+We find that the presence of leading pedestrian intervals decreases pedestrian injuries at a statistically significant level. Results (5):
+
+$$
+\text{Ped Injuries}_{i, t} = \beta_0 + \beta_1 \cdot \text{Ped}_{i, t} + \sum_k \theta_k x^k
+$$
+
+This regression contains statistically significant treatment. 
+
+Speed bumps continue to be statistically significant in decreasing pedestrian injuries and the frequency of accidents that involve pedestrians. Results (6) and (7):
+
+$$
+\text{Ped Injuries}_{i, t} = \beta_0 + \beta_1 \cdot \text{Bumps}_{i, t} + \sum_k \theta_k x^k
+$$
+
+This regression contains statistically significant treatment. 
+
+$$
+\text{Count}_{i, t} = \beta_0 + \beta_1 \cdot \text{Bumps}_{i, t} + \sum_k \theta_k x^k
+$$
+
+This regression contains statistically significant treatment. 
+
+```{r, results='asis'}
+lucas_v4 <- read_csv(here("Data", "Lucas Data", "regressions_v4.csv"))
+
+regres1_v4 <- lm(`NUMBER OF PEDESTRIANS INJURED` ~ ped + month + speed_reduction, data = lucas_v4)
+
+regres2_v4 <- lm(`NUMBER OF PEDESTRIANS INJURED` ~ bumps + month + speed_reduction, data = lucas_v4)
+
+regres3_v4 <- lm(count ~ bumps + month + speed_reduction, data = lucas_v4)
+
+stargazer(regres1_v4, regres2_v4, regres3_v4, header = FALSE, type = "latex",
+          column.labels = c("(5)", "(6)", "(7)"), order = c(5, 1, 2, 3, 4))
+```
+
+# Discussion 
+
+From all the models and regressions we tested, the treatment effect of our 2 treatments–speed bumps and leading pedestrian intervals–appears to vary under a great range of conditions. We gain a few pieces of insight from the various results. 
+
+Firstly, there appears to be a great difference between the treatment effects on all the intersections compared to them solely on priority intersections. The effect speed bumps, in particular (as LPIs had no clear effect on any group iteration of priority intersections), were much weaker on priority intersections compared to their effect on the general intersection population. We believe this could be for two reasons: 
+
+1. The priority intersection datasets were simply too small leading to lackluster results. 
+2. There is something intrinsically different about priority intersections that prevent speed bumps, and LPIs for that matter, from decreasing the number of accidents and injuries. These factors might range from how distant the bumps are to the intersection to priority intersections having unique traffic patterns that greatly impact their accidents. The specifics around the characteristics of priority intersections are worthy of future exploration. 
+
+A second insight we gained was the persistence of the effect speed bumps had on both injuries and accident frequency throughout the many regressions. Speed bumps appear to be effective at reducing overall accident count, overall injuries, pedestrian injuries, and accident count involving pedestrians. This certainly demonstrates the efficacy of speed bumps as a car-centric and pedestrian-centric infrastructure implementation to most intersections. Given the pedestrian-centric nature of the leading pedestrian interval signals, the treatment only became significant when regressed on crashes that involve pedestrians. 
+
+An important point of contention we initially had was the method through which treatments were distributed across intersections. Our initial thesis was that priority intersections were given treatments at a higher rate than non-priority. This might be the case with other treatments, but not with speed bumps and leading pedestrian intervals. From summary statistics, the speed bump and leading pedestrian interval treatments were implemented at similar rates between the overall intersection population and the priority intersection group. This was the backbone behind some assumptions for our regressions, that prevented us from worrying about a potential lack of randomization. An additional topic of future research could be based around the types of treatments allocated to priority intersections compared. Our hypothesis is that priority intersections receive large-scale improvements and renovations around their design and layout, while speed bumps and leading pedestrian intervals are relatively cheap infrastructures to implement (essentially $0 in the case of LPIs), and will be the go-to treatments for most intersections.       
+
+# Conclusion
+
+Through our rigorous battery of regressions, we have demonstrated the effectiveness of two infrastructure and engineering implementations greatly utilized by the Vision Zero campaign in their ultimate goal of reducing crashes, injuries, and deaths. More specifically, our models estimate speed bumps to reduce overall crashes by 12.3% and overall injuries by 24.3%. Additionally, on statistically significant confidence levels, speed bumps decrease the number of crashes involving pedestrians and also the number of pedestrian injuries assuming crashes do occur. Despite not appearing as effective, our pedestrian-centric treatment of leading pedestrian interval signals are shown to be statistically significant in reducing the number of pedestrian injuries by 1.8%.  
+
+Finally, this research has important implications for policymaking and urban planning. Overall, it indicates that traffic fatalities and injuries are not necessarily tail-end risk events that are inevitable and impossible to eliminate. While accidents can always happen due to human error, our results indicate that some amount of error and risk can be removed by effective and active traffic safety guidelines. 
+
+\newpage
+
+# Works Cited
+
+\setlength{\parindent}{-0.2in}
+\setlength{\leftskip}{0.2in}
+\setlength{\parskip}{8pt}
+\noindent
+
+Antic, Boris, Pesic, Dailbor, Vujanic, Milan, and Lipovac, Krsto. “The influence of speed bumps heights to the decrease of the vehicle speed - Belgrade Experience.” Safety Science 57 (2013): 303-312. [https://doi.org/10.1016/j.ssci.2013.03.008](https://doi.org/10.1016/j.ssci.2013.03.008).
+
+Bullock, Darcy M, Hubbard, Sarah Marie Lillo, Westervelt, Daniel M, and Bryant, Daniel Benjamin. “Expected Right-Turn Traffic Characteristics Associated with Leading Pedestrian Phases.” Transportation Research Board. 2006. [https://trid.trb.org/view/776192](https://trid.trb.org/view/776192).
+
+Fayish, Aaron C., and Gross, Frank. “Safety Effectiveness of Leading Pedestrian Intervals Evaluated by a Before-After Study with Comparison Groups.” Transportation Research Board 2198 no. 1 (January 2010). [https://doi.org/10.3141/2198-03](https://doi.org/10.3141/2198-03).
+
+“Global Status Report on Road Safety 2018.” World Health Organization. June 17, 2018. [https://www.who.int/publications/i/item/9789241565684](https://www.who.int/publications/i/item/9789241565684).
+
+Mammen, Kristin, Suk Shim, Hyoung, and Weber, Bryan S. “Vision Zero: Speed Limit Reduction and Traffic Injury Prevention in New York City.” Eastern Economic Journal Volume 46 (2020) :282–300. [https://doi.org/10.1057/s41302-019-00160-5](https://doi.org/10.1057/s41302-019-00160-5).
+
+McGeehan, Patrick. “New York City Council Passes Bill Lowering the Speed Limit on Most Streets.” The New York Times. October 7, 2014. [https://www.nytimes.com/2014/10/08/nyregion/new-york-city-council-passes-bill-lowering-the-speed-limit-on-most-streets.html](https://www.nytimes.com/2014/10/08/nyregion/new-york-city-council-passes-bill-lowering-the-speed-limit-on-most-streets.html).
+
+“Motor Vehicle Collisions - Crashes.” City of New York. Accessed May 24, 2021. [https://data.cityofnewyork.us/Public-Safety/Motor-Vehicle-Collisions-Crashes/h9gi-nx95](https://data.cityofnewyork.us/Public-Safety/Motor-Vehicle-Collisions-Crashes/h9gi-nx95).
+
+“Motor Vehicle Collisions - Person.” City of New York. Accessed May 24, 2021.
+[https://data.cityofnewyork.us/Public-Safety/Motor-Vehicle-Collisions-Person/f55k-p6yu](https://data.cityofnewyork.us/Public-Safety/Motor-Vehicle-Collisions-Person/f55k-p6yu).
+
+Naumann, Rebecca B., Heiny, Stephen, Evenson, Kelly R., Lajeunesse, Seth, Cooper, Jill F., Doggett, Sarah, and Marshall, Stephen W. “Organizational networks in road safety: Case studies of U.S. Vision Zero cities.” Traffic Injury Prevention 20 no. 4 (April, 2019): 378-385. [https://doi.org/10.1080/15389588.2019.1587752](https://doi.org/10.1080/15389588.2019.1587752).
+
+Noland, Robert B. “From theory to practice in road safety policy: Understanding risk versus mobility.” Research in Transportation Economics 43 no. 1 (July 2013): 71-84. [https://doi.org/10.1016/j.retrec.2012.12.007](https://doi.org/10.1016/j.retrec.2012.12.007).
+
+Pecheux, Kelley Klaver. “Pedestrian Safety Engineering and ITS-Based Countermeasures Program for Reducing Pedestrian Fatalities, Injury Conflicts, and Other Surrogate Measures Final System Impact Report.” Science Applications International Corporation. US Department of Transportation Contract No.:  DTFH61-96-C-00098 Task No.: 9842. January 30, 2009. [https://safety.fhwa.dot.gov/ped_bike/tools_solve/ped_scdproj/sys_impact_rpt/sys_impact_rpt.pdf](https://safety.fhwa.dot.gov/ped_bike/tools_solve/ped_scdproj/sys_impact_rpt/sys_impact_rpt.pdf).
+
+Tester, June M., Rutherford, George W., Wald, Zachary, and Rutherford, Mary W. “A Matched Case-Control Study Evaluating the Effectiveness of Speed Humps in Reducing Child Pedestrian Injuries.” American Journal of Public Health 94 No. 4 (April 2004). [https://ajph.aphapublications.org/doi/full/10.2105/AJPH.94.4.646](https://ajph.aphapublications.org/doi/full/10.2105/AJPH.94.4.646).
+
+“Vision Zero Year 5 Report.” City of New York. March 2019. [https://www1.nyc.gov/assets/visionzero/downloads/pdf/vision-zero-year-5-report.pdf](https://www1.nyc.gov/assets/visionzero/downloads/pdf/vision-zero-year-5-report.pdf).
+
+“VZV_Leading Pedestrian Interval Signals.” City of New York. Accessd May 24, 2021. [https://data.cityofnewyork.us/Transportation/VZV_Leading-Pedestrian-Interval-Signals/mqt5-ctec](https://data.cityofnewyork.us/Transportation/VZV_Leading-Pedestrian-Interval-Signals/mqt5-ctec).
+
+“VZV_Priority Intersections.” City of New York. Accessed May 24, 2021. [https://data.cityofnewyork.us/Transportation/VZV_Priority-Intersections/2nj7-jxah](https://data.cityofnewyork.us/Transportation/VZV_Priority-Intersections/2nj7-jxah).
+
+“VZV_Speed Humps.” City of New York. Accessed May 24, 2021. [https://data.cityofnewyork.us/Transportation/VZV_Speed-Humps/7f9e-jic4](https://data.cityofnewyork.us/Transportation/VZV_Speed-Humps/7f9e-jic4).
+
+Wegman, Fred, Berg, Hans-Yngve, Cameron, Iain, Thompson, Claire, Siegrist, Stefan, and Weijermars, Wendy. “Evidence-based and data-driven road safety management.” IATSS Research 39 no. 1 (July 2015): 19-25. [https://doi.org/10.1016/j.iatssr.2015.04.001](https://doi.org/10.1016/j.iatssr.2015.04.001).
+
+“What is Vision Zero?” Vision Zero Network. Accessed June 2, 2021. [https://visionzeronetwork.org/about/vision-zero-network/](https://visionzeronetwork.org/about/vision-zero-network/).
+
